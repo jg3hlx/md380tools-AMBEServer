@@ -24,10 +24,6 @@ void decode_amb_file(char *infilename,
 
   int ambfd=STDIN_FILENO;
   int wavfd=STDOUT_FILENO;
-
-  if(mprotect((void*)0x800c000, 0xf2c00, PROT_EXEC)){
-	fprintf(stderr, "Failed to set firmware section executable, vocoding will probably fail.\n");
-  }
     
   if (infilename)
     ambfd=open(infilename,0);
@@ -148,10 +144,6 @@ void encode_wav_file(char *infilename,
   short *inbuf1 = (short*) &wav_inbuffer1;
   short *ambe   = (short*) &ambe_outbuffer;
 
-  if(mprotect((void*)0x800c000, 0xf2c00, PROT_EXEC)){
-	fprintf(stderr, "Failed to set firmware section executable, vocoding will probably fail.\n");
-  }
-
   write(ambfd,".amb",4); // write dsd header
 
   short inbuf[160];
@@ -224,4 +216,68 @@ void encode_wav_file(char *infilename,
   close(wavfd);
   close(ambfd);
   fprintf(stderr,"Done with AMBE test.\n");
+}
+
+//Take a buffer of ambe49 (49 bit ambe) and decode it into PCM
+void decode_amb_buffer(unsigned char *ambe49, short *pcm){
+
+  //FIXME These are unique to 2.032 firmware; should be symbols instead.
+  short *ambe=(short*) &ambe_inbuffer; //0x20011c8e;
+  short *outbuf0=(short*) &ambe_outbuffer0; //0x20011aa8;//80 samples
+  short *outbuf1=(short*) &ambe_outbuffer1; //0x20011b48;//80 samples
+
+    int ambei=0;
+    for(int i=0;i<6;i++){
+      for(int j=0;j<8;j++){
+        ambe[ambei++]=(ambe49[i]>>(7-j))&1; //MSBit first
+      }
+    }
+    ambe[ambei++]=(ambe49[6]&0x80) ? 1 : 0;//Final bit in its own frame as MSBit.
+
+    //This does the decoding
+    ambe_decode_wav(outbuf0, 80, ambe,
+                    0, 0, 0,
+                    (int) &ambe_mystery //0x20011224 //Don't know what structure is at this address.
+                    );
+
+    ambe_decode_wav(outbuf1, 80, ambe,
+                    0, 0, 1,
+                    (int) &ambe_mystery //0x20011224 //Don't know what structure is at this address.
+                    );
+
+    memmove( pcm, outbuf0, 160 );
+    memmove( &pcm[80], outbuf1, 160 );
+
+}
+
+void encode_amb_buffer(unsigned char *ambe49, short *pcm, unsigned short ecmode){
+  
+  short *inbuf0 = (short*) &wav_inbuffer0;
+  short *inbuf1 = (short*) &wav_inbuffer1;
+  short *ambe   = (short*) &ambe_outbuffer;
+
+  memset(ambe,0,49*2); // init ambe memory
+
+  for (int i=0;i<80;i++) inbuf0[i] = pcm[i];
+  for (int i=0;i<80;i++) inbuf1[i] = pcm[i+80];
+
+  //This does the decoding
+  ambe_encode_thing2(ambe, 0, inbuf0,
+      80, ecmode, 0, 0x2000,
+      (int) &ambe_en_mystery
+      );
+
+  ambe_encode_thing2(ambe, 0, inbuf1,
+      80, ecmode, 1, 0x2000,
+      (int) &ambe_en_mystery
+      );
+
+  ambe49[0] = ambe[7] | ambe[6] << 1 | ambe[5] << 2 | ambe[4] << 3 | ambe[3] << 4 | ambe[2] << 5 | ambe[1] << 6 | ambe[0] << 7 ;
+  ambe49[1] = ambe[15] | ambe[14] << 1 | ambe[13] << 2 | ambe[12] << 3 | ambe[11] << 4 | ambe[10] << 5 | ambe[9] << 6 | ambe[8] << 7 ;
+  ambe49[2] = ambe[23] | ambe[22] << 1 | ambe[21] << 2 | ambe[20] << 3 | ambe[19] << 4 | ambe[18] << 5 | ambe[17] << 6 | ambe[16] << 7 ;
+  ambe49[3] = ambe[31] | ambe[30] << 1 | ambe[29] << 2 | ambe[28] << 3 | ambe[27] << 4 | ambe[26] << 5 | ambe[25] << 6 | ambe[24] << 7 ;
+  ambe49[4] = ambe[39] | ambe[38] << 1 | ambe[37] << 2 | ambe[36] << 3 | ambe[35] << 4 | ambe[34] << 5 | ambe[33] << 6 | ambe[32] << 7 ;
+  ambe49[5] = ambe[47] | ambe[46] << 1 | ambe[45] << 2 | ambe[44] << 3 | ambe[43] << 4 | ambe[42] << 5 | ambe[41] << 6 | ambe[40] << 7 ;
+  ambe49[6] = ambe[48] ? 0x80 : 0;
+
 }

@@ -1,6 +1,6 @@
 
 OBJS = md380-emu.o ambe.o
-CC=arm-linux-gnueabi-gcc -static -g
+CC=arm-linux-gnueabihf-gcc -static -g -std=gnu99
 
 all: md380-emu
 clean:
@@ -8,7 +8,7 @@ clean:
 
 
 md380-emu: $(OBJS) firmware.o ram.o
-	$(CC) -o md380-emu $(OBJS) firmware.o ram.o \
+	$(CC) -o md380-emu $(OBJS) firmware.o ram.o -lm \
 		-Xlinker --just-symbols=../applet/src/symbols_d02.032 \
 		-Xlinker --section-start=.firmware=0x0800C000 \
 		-Xlinker  --section-start=.sram=0x20000000 
@@ -50,17 +50,18 @@ firmware.o:
 #First we make sure the firmware is ready.
 	"${MAKE}" -C ../firmware
 #May need to adjust these flags for NX compatibility.
-	arm-linux-gnueabi-objcopy \
+	arm-linux-gnueabihf-objcopy \
 		-I binary ../firmware/unwrapped/D002.032.img \
 		--change-addresses=0x0800C000 \
 		--rename-section .data=.firmware \
 		-O elf32-littlearm -B arm firmware.o
 ram.o:
-	arm-linux-gnueabi-objcopy \
+	arm-linux-gnueabihf-objcopy \
 		-I binary ../cores/d02032-core.img \
 		--change-addresses=0x20000000 \
 		--rename-section .data=.sram \
 		-O elf32-littlearm -B arm ram.o
+
 
 
 
