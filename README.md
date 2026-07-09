@@ -293,3 +293,5 @@ Mode](https://m17project.org/).
 Previously we customized firmware images with new startup
 screens.  This is [presently broken](https://github.com/travisgoodspeed/md380tools/issues/221).
 
+AMBE
+© 2016 Jean-Luc Deltombe (LX3JL) and Luc Engelmann (LX1IQ)
